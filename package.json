@@ -12,7 +12,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@aos/library-contracts": "file:packages/aos-library-contracts",
+    "@wcmyk/library-contracts": "file:packages/aos-library-contracts",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

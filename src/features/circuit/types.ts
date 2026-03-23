@@ -1,4 +1,4 @@
-import type { AosModuleManifest, TraceEnvelope } from '@aos/library-contracts'
+import type { AosModuleManifest, TraceEnvelope } from '@wcmyk/library-contracts'
 
 export type CircuitComponentType = 'battery' | 'resistor' | 'led'
 
