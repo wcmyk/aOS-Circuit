@@ -23,7 +23,7 @@ function buildAdjacency(nodes: CircuitNode[], wires: CircuitWire[]) {
 
 function formatPath(nodes: CircuitNode[], path: string[]) {
   const labels = path.map((nodeId) => nodes.find((candidate) => candidate.id === nodeId)?.label ?? nodeId)
-  return labels.join(' → ')
+  return labels.join(' \u2192 ')
 }
 
 export function simulateCircuit(nodes: CircuitNode[], wires: CircuitWire[]): SimulationResult {
@@ -58,7 +58,50 @@ export function simulateCircuit(nodes: CircuitNode[], wires: CircuitWire[]): Sim
     }
   }
 
-  const adjacency = buildAdjacency(nodes, wires)
+  // Capacitors block DC current
+  const capacitors = nodes.filter((n) => n.type === 'capacitor')
+  if (capacitors.length > 0) {
+    steps.push(
+      circuitTraceStep.failure(
+        'Capacitor blocks DC current',
+        'Capacitors block steady-state DC current. Remove the capacitor or use an AC solver.',
+        { capacitorIds: capacitors.map((c) => c.id) },
+      ),
+    )
+    return {
+      isClosedLoop: false,
+      isSeries: false,
+      currentAmps: 0,
+      totalResistanceOhms: 0,
+      supplyVoltage: 0,
+      ledOn: false,
+      voltageDrops: {},
+      warnings: [],
+      errors: ['Capacitor blocks DC current. Remove capacitor or use AC solver.'],
+      path: [],
+      trace: createCircuitTrace(context, steps),
+    }
+  }
+
+  // Open switches break the circuit path
+  const openSwitches = new Set(nodes.filter((n) => n.type === 'switch' && !(n.closed ?? true)).map((n) => n.id))
+  if (openSwitches.size > 0) {
+    const openLabels = nodes.filter((n) => openSwitches.has(n.id)).map((n) => n.label)
+    steps.push(
+      circuitTraceStep.topology(
+        'Open switch detected',
+        `Switch(es) are open, breaking the circuit path: ${openLabels.join(', ')}.`,
+        'warning',
+        { openSwitches: [...openSwitches] },
+      ),
+    )
+  }
+
+  const conductingWires = wires.filter(
+    (w) => !openSwitches.has(w.from.nodeId) && !openSwitches.has(w.to.nodeId),
+  )
+
+  const adjacency = buildAdjacency(nodes, conductingWires)
   const disconnected = nodes.filter((node) => (adjacency.get(node.id)?.length ?? 0) === 0)
   if (disconnected.length > 0) {
     steps.push(
@@ -94,14 +137,14 @@ export function simulateCircuit(nodes: CircuitNode[], wires: CircuitWire[]): Sim
   )
 
   const degrees = nodes.map((node) => adjacency.get(node.id)?.length ?? 0)
-  const hasClosedLoop = nodes.length >= 2 && degrees.every((degree) => degree === 2) && wires.length === nodes.length
+  const hasClosedLoop = nodes.length >= 2 && degrees.every((degree) => degree === 2) && conductingWires.length === nodes.length
   if (!hasClosedLoop) {
     steps.push(
       circuitTraceStep.topology(
         'No closed loop detected',
         'A valid series loop requires every component to have exactly two connections and the wire count to match the node count.',
         'error',
-        { degrees, wireCount: wires.length, nodeCount: nodes.length },
+        { degrees, conductingWireCount: conductingWires.length, nodeCount: nodes.length },
       ),
     )
     steps.push(circuitTraceStep.effect('Current forced to zero', 'Without a closed loop, charge cannot circulate through the circuit.', 'warning'))
@@ -204,7 +247,7 @@ export function simulateCircuit(nodes: CircuitNode[], wires: CircuitWire[]): Sim
     steps.push(
       circuitTraceStep.failure(
         'Resistance too low',
-        'The equivalent series resistance must be greater than zero for the MVP Ohm’s Law solver.',
+        'The equivalent series resistance must be greater than zero for the MVP Ohm\u2019s Law solver.',
         { totalResistanceOhms },
       ),
     )
@@ -257,8 +300,8 @@ export function simulateCircuit(nodes: CircuitNode[], wires: CircuitWire[]): Sim
 
   steps.push(
     circuitTraceStep.computation(
-      'Applied Ohm’s Law',
-      `Computed current = (${supplyVoltage.toFixed(2)} V - ${totalLedDrop.toFixed(2)} V) / ${totalResistanceOhms.toFixed(2)} Ω = ${currentAmps.toFixed(3)} A.`,
+      'Applied Ohm\u2019s Law',
+      `Computed current = (${supplyVoltage.toFixed(2)} V \u2212 ${totalLedDrop.toFixed(2)} V) / ${totalResistanceOhms.toFixed(2)} \u03A9 = ${currentAmps.toFixed(3)} A.`,
       'success',
       { supplyVoltage, totalLedDrop, totalResistanceOhms, currentAmps },
     ),
