@@ -1,4 +1,4 @@
-import type { TraceCategory, TraceLevel, TraceStep } from '@aos/library-contracts'
+import type { TraceCategory, TraceLevel, TraceStep } from '@wcmyk/library-contracts'
 import type { CircuitAnalysisContext, CircuitTrace } from './types'
 
 function createStep(category: TraceCategory, title: string, detail: string, level: TraceLevel, data?: Record<string, unknown>): TraceStep {
